@@ -3,8 +3,10 @@ import pandas as pd
 import plotly.express as px
 
 # Load dataset (Make sure the file path is correct)
-file_path = "green_house_saffron_1.csv"
+import os
+file_path = os.path.join(os.getcwd(), "green_house_saffron_1.csv")
 df = pd.read_csv(file_path)
+
 
 
 # Convert date column to datetime
