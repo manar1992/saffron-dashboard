@@ -114,6 +114,3 @@ if not filtered_df.empty:
 else:
     st.warning("⚠️ لا توجد بيانات متاحة للوقت المحدد.")
 
-# ✅ **حذف `st.run()` لتجنب الخطأ**
-if __name__ == "__main__":
-    st.write("✅ تطبيق Streamlit جاهز!")
