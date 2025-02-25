@@ -87,7 +87,7 @@ if not filtered_df.empty:
     input_data = filtered_df[features].values[0]
     predicted_health = predict_crop_health(input_data)
     st.subheader("🌱 Crop Health Prediction")
-    st.write(f"🟢 **Predicted Crop Health: {predicted_health}**")
+    st.write(f"🟢 **Crop Health: {predicted_health}**")
 
     # 🪴 **تفاصيل التربة**
     st.subheader("🪴 Soil Details")
