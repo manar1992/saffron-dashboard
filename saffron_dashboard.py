@@ -81,11 +81,14 @@ if not filtered_df.empty:
     col2.metric("💧 Humidity", f"{filtered_df['humidity'].values[0]} %")
     col3.metric("🌤 Relative Humidity", f"{filtered_df['relative_humidity'].values[0]} %")
 
-    # 🌱 Prediction
+    # 🌱 Crop Health Status
     input_data = filtered_df[features].values[0]
     predicted_health = predict_crop_health(input_data)
-    st.subheader("🌱 Crop Health Prediction")
-    st.success(f"🟢 Crop Health: {predicted_health}")
+    st.subheader("🌱 Crop Health Status")
+    if predicted_health == "Healthy":
+        st.success(f"🟢 Crop Health: {predicted_health}")
+    else:
+        st.error(f"🔴 Crop Health: {predicted_health}")
 
     # ⚠️ Alerts
     st.subheader("⚠️ Alerts & Recommendations")
