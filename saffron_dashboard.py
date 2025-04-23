@@ -8,21 +8,20 @@ from sklearn.preprocessing import LabelEncoder
 import joblib
 import os
 
-# 🟢 تهيئة الصفحة
+# 🟢 Page configuration
 st.set_page_config(page_title="Saffron Dashboard", layout="wide")
 
-# 📂 تحديد المسار الصحيح للملف
+# 📂 Load dataset
 file_path = "green_house_saffron_1.csv"
-
-# 🟠 تحميل البيانات والتحقق من وجود الملف
 if not os.path.exists(file_path):
-    st.error(f"🚨 الملف '{file_path}' غير موجود. تأكد من تحميله إلى المستودع الصحيح.")
+    st.error(f"🚨 File '{file_path}' not found. Please upload it to the correct directory.")
     st.stop()
 
+# 📥 Read data
 df = pd.read_csv(file_path)
 df['date'] = pd.to_datetime(df['date'])
 
-# 🟢 تصنيف صحة المحصول
+# 🟢 Crop health classification
 def classify_crop_health(row):
     if row['ph'] < 5.5 or row['ph'] > 8.0:
         return "At Risk"
@@ -37,80 +36,101 @@ def classify_crop_health(row):
 
 df['crop_health'] = df.apply(classify_crop_health, axis=1)
 
-# 🔄 تحويل التصنيفات إلى أرقام
+# 🔄 Encode labels
 label_encoder = LabelEncoder()
 df['crop_health_label'] = label_encoder.fit_transform(df['crop_health'])
 
-# 📊 اختيار الميزات المستهدفة
+# 📊 Feature selection
 features = ["temperature", "humidity", "st", "ph", "n", "p", "k"]
 X = df[features]
 y = df["crop_health_label"]
 
-# 🔥 تدريب النموذج
+# 🔥 Train model
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
 model = RandomForestClassifier(n_estimators=100, random_state=42)
 model.fit(X_train, y_train)
 
-# 💾 حفظ النموذج
+# 💾 Save model
 joblib.dump(model, "crop_health_model.pkl")
 
-# 🚀 تحميل النموذج
+# 🚀 Load model
 loaded_model = joblib.load("crop_health_model.pkl")
 
-# 🔍 دالة التنبؤ بصحة المحصول
+# 🔍 Prediction function
 def predict_crop_health(input_data):
     try:
         prediction = loaded_model.predict([input_data])[0]
         return label_encoder.inverse_transform([prediction])[0]
     except Exception as e:
-        return f"❌ خطأ في التنبؤ: {str(e)}"
+        return f"❌ Prediction error: {str(e)}"
 
-# 🌿 **واجهة Streamlit**
+# 🌿 Streamlit UI
 st.title("🌱 Saffron Cultivation Dashboard")
 
-# 📅 **اختيار التاريخ**
+# 📅 Select date
 selected_date = st.sidebar.date_input("📅 Select Date", df['date'].min())
 
-# 🕒 **اختيار الوقت**
-st.subheader("📊 Select Time:")
-time_slider = st.slider("حدد الوقت:", 0, 23, step=1, format="%d:00")
+# 🕒 Select hour
+time_slider = st.slider("⏰ Select Time:", 0, 23, step=1, format="%d:00")
 filtered_df = df[(df['date'].dt.date == selected_date) & (df['time'].astype(str).str.startswith(str(time_slider).zfill(2)))]
 
-# ✅ التحقق من توفر البيانات
+# ✅ Display data if available
 if not filtered_df.empty:
     col1, col2, col3 = st.columns(3)
     col1.metric("🌡 Temperature", f"{filtered_df['temperature'].values[0]} °C")
     col2.metric("💧 Humidity", f"{filtered_df['humidity'].values[0]} %")
     col3.metric("🌤 Relative Humidity", f"{filtered_df['relative_humidity'].values[0]} %")
 
-    # 🌱 **التنبؤ بصحة المحصول**
+    # 🌱 Prediction
     input_data = filtered_df[features].values[0]
     predicted_health = predict_crop_health(input_data)
     st.subheader("🌱 Crop Health Prediction")
     st.write(f"🟢 **Crop Health: {predicted_health}**")
 
-    # 🪴 **تفاصيل التربة**
+    # 🪴 Soil Details
     st.subheader("🪴 Soil Details")
-    soil_params = ["temperature", "humidity", "relative_humidity", "n", "p", "k", "st", "sh", "ph"]
-    
+    soil_params = ["n", "p", "k", "st", "sh", "ph"]
     soil_data = {
         "Parameter": soil_params,
-        "Value": [filtered_df[param].values[0] for param in soil_params],
-        "Status": ["Good" if 15 <= filtered_df["temperature"].values[0] <= 25 else "Bad",
-                   "Good" if 40 <= filtered_df["humidity"].values[0] <= 60 else "Bad",
-                   "Good" if 40 <= filtered_df["relative_humidity"].values[0] <= 60 else "Bad",
-                   "Bad", "Bad", "Bad", "Bad", "Bad", "Bad"],
-        "Water Need": ["Sufficient Water"] * 9
+        "Current Value": [filtered_df[param].values[0] for param in soil_params],
+        "Status": [
+            "Bad" if param in ["n", "p", "k", "st", "sh", "ph"] else "Good"
+            for param in soil_params
+        ],
+        "Water Need": ["Sufficient Water"] * len(soil_params),
     }
 
     soil_df = pd.DataFrame(soil_data)
+
+    # 🧪 Recommendations
+    recommendations = []
+    for param, value in zip(soil_df["Parameter"], soil_df["Current Value"]):
+        if param == "n":
+            if value < 50:
+                recommendations.append("Add Nitrogen: approx. 20 units")
+            else:
+                recommendations.append("No addition needed")
+        elif param == "p":
+            if not (0 <= value <= 1999):
+                recommendations.append("Add Phosphorus: approx. 30 units")
+            else:
+                recommendations.append("No addition needed")
+        elif param == "k":
+            if not (0 <= value <= 1999):
+                recommendations.append("Add Potassium: approx. 25 units")
+            else:
+                recommendations.append("No addition needed")
+        else:
+            recommendations.append("—")
+
+    soil_df["Recommendation"] = recommendations
+    soil_df = soil_df[["Parameter", "Current Value", "Recommendation", "Status", "Water Need"]]
     st.table(soil_df)
 
-    # 📈 **رسم بياني لدرجة الحرارة عبر الوقت**
+    # 📈 Temperature chart
     st.subheader("📈 Temperature Trend")
     temp_chart = px.line(df[df['date'].dt.date == selected_date], x="time", y="temperature", title="Temperature Over Time")
     st.plotly_chart(temp_chart)
 
 else:
-    st.warning("⚠️ لا توجد بيانات متاحة للوقت المحدد.")
-
+    st.warning("⚠️ No data available for the selected time.")
