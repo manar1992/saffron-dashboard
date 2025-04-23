@@ -9,7 +9,6 @@ import joblib
 import os
 
 # 🟢 Page configuration
-# 
 st.set_page_config(page_title="Saffron Dashboard", layout="wide")
 
 # 📂 Load dataset
@@ -86,7 +85,18 @@ if not filtered_df.empty:
     input_data = filtered_df[features].values[0]
     predicted_health = predict_crop_health(input_data)
     st.subheader("🌱 Crop Health Prediction")
-    st.write(f"🟢 **Crop Health: {predicted_health}**")
+    st.success(f"🟢 Crop Health: {predicted_health}")
+
+    # ⚠️ Alerts
+    st.subheader("⚠️ Alerts & Recommendations")
+    if filtered_df['humidity'].values[0] < 40 or filtered_df['st'].values[0] < 18:
+        st.warning("🚨 Irrigation Needed: Humidity or soil moisture is below optimal level.")
+    if filtered_df['n'].values[0] < 50:
+        st.error("⚠️ Fertilizer Needed: Nitrogen is low.")
+    if not (0 <= filtered_df['p'].values[0] <= 1999):
+        st.error("⚠️ Fertilizer Needed: Phosphorus is out of range.")
+    if not (0 <= filtered_df['k'].values[0] <= 1999):
+        st.error("⚠️ Fertilizer Needed: Potassium is out of range.")
 
     # 🪴 Soil Details
     st.subheader("🪴 Soil Details")
@@ -94,16 +104,12 @@ if not filtered_df.empty:
     soil_data = {
         "Parameter": soil_params,
         "Current Value": [filtered_df[param].values[0] for param in soil_params],
-        "Status": [
-            "Bad" if param in ["n", "p", "k", "st", "sh", "ph"] else "Good"
-            for param in soil_params
-        ],
+        "Status": ["Bad" if param in ["n", "p", "k", "st", "sh", "ph"] else "Good" for param in soil_params],
         "Water Need": ["Sufficient Water"] * len(soil_params),
     }
 
     soil_df = pd.DataFrame(soil_data)
 
-    # 🧪 Recommendations
     recommendations = []
     for param, value in zip(soil_df["Parameter"], soil_df["Current Value"]):
         if param == "n":
