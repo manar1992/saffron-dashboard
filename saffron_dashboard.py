@@ -7,6 +7,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 import joblib
 import os
+from datetime import datetime
 
 # 🟢 Page configuration
 st.set_page_config(page_title="Saffron Dashboard", layout="wide")
@@ -64,6 +65,23 @@ def predict_crop_health(input_data):
     except Exception as e:
         return f"❌ Prediction error: {str(e)}"
 
+# 🌱 Growth Stage logic
+def get_growth_stage(month):
+    if month in [8, 9, 10]:
+        return "Dormancy"
+    elif month == 11:
+        return "Growth Stimulation"
+    elif month in [12, 1]:
+        return "Vegetative Growth"
+    elif month == 2:
+        return "Flowering"
+    elif month in [3, 4]:
+        return "Corm Multiplication"
+    elif month == 5:
+        return "Leaf Yellowing & Dormancy Preparation"
+    else:
+        return "Unknown"
+
 # 🌿 Streamlit UI
 st.title("🌱 Saffron Cultivation Dashboard")
 
@@ -89,6 +107,12 @@ if not filtered_df.empty:
         st.success(f"🟢 Crop Health: {predicted_health}")
     else:
         st.error(f"🔴 Crop Health: {predicted_health}")
+
+    # 📆 Growth Stage
+    month = selected_date.month
+    stage = get_growth_stage(month)
+    st.subheader("🪴 Growth Stage")
+    st.info(f"📌 Current Growth Stage: **{stage}**")
 
     # ⚠️ Alerts
     st.subheader("⚠️ Alerts & Recommendations")
