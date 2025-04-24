@@ -22,9 +22,12 @@ if not os.path.exists(file_path):
 df = pd.read_csv(file_path)
 df['date'] = pd.to_datetime(df['date'])
 
-# Default values for initial selection
-initial_date = df['date'].dt.date.min()
-initial_hour = 0
+# Default initial timestamp values from first row
+time_str = df['time'].astype(str).iloc[0]
+time_parts = time_str.split(":")
+initial_date = df['date'].dt.date.iloc[0]
+initial_hour = int(time_parts[0])
+initial_minute = int(time_parts[1]) if len(time_parts) > 1 else 0
 
 # 🟢 Crop health classification
 def classify_crop_health(row):
@@ -92,7 +95,7 @@ st.title("🌱 Saffron Cultivation Dashboard")
 # 📅 Select date (defaults to first available date)
 selected_date = st.sidebar.date_input("📅 Select Date", value=initial_date)
 
-# 🕒 Select hour (defaults to 0)
+# 🕒 Select time (hour only; future enhancement: support exact time)
 time_slider = st.slider("⏰ Select Time:", 0, 23, step=1, value=initial_hour, format="%d:00")
 filtered_df = df[(df['date'].dt.date == selected_date) & (df['time'].astype(str).str.startswith(str(time_slider).zfill(2)))]
 
