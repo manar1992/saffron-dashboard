@@ -128,37 +128,77 @@ if not filtered_df.empty:
     # 🪴 Soil Details
     st.subheader("🪴 Soil Details")
     soil_params = ["n", "p", "k", "st", "sh", "ph"]
-    soil_data = {
-        "Parameter": soil_params,
-        "Current Value": [filtered_df[param].values[0] for param in soil_params],
-        "Status": ["Bad" if param in ["n", "p", "k", "st", "sh", "ph"] else "Good" for param in soil_params],
-        "Water Need": ["Sufficient Water"] * len(soil_params),
-    }
-
-    soil_df = pd.DataFrame(soil_data)
+    current_values = [int(filtered_df[param].values[0]) for param in soil_params]
 
     recommendations = []
-    for param, value in zip(soil_df["Parameter"], soil_df["Current Value"]):
+    status = []
+    reasons = []
+    for param, value in zip(soil_params, current_values):
         if param == "n":
             if value < 50:
                 recommendations.append("Add Nitrogen: approx. 20 units")
+                status.append("Bad")
+                reasons.append("Low nitrogen")
             else:
                 recommendations.append("No addition needed")
+                status.append("Good")
+                reasons.append("")
         elif param == "p":
             if not (0 <= value <= 1999):
                 recommendations.append("Add Phosphorus: approx. 30 units")
+                status.append("Bad")
+                reasons.append("Phosphorus out of range")
             else:
                 recommendations.append("No addition needed")
+                status.append("Good")
+                reasons.append("")
         elif param == "k":
             if not (0 <= value <= 1999):
                 recommendations.append("Add Potassium: approx. 25 units")
+                status.append("Bad")
+                reasons.append("Potassium out of range")
             else:
                 recommendations.append("No addition needed")
-        else:
-            recommendations.append("—")
+                status.append("Good")
+                reasons.append("")
+        elif param == "st":
+            if not (18 <= value <= 22):
+                recommendations.append("Adjust soil temp")
+                status.append("Bad")
+                reasons.append("Soil temp out of range")
+            else:
+                recommendations.append("—")
+                status.append("Good")
+                reasons.append("")
+        elif param == "sh":
+            if not (40 <= value <= 60):
+                recommendations.append("Improve soil humidity")
+                status.append("Bad")
+                reasons.append("Soil humidity out of range")
+            else:
+                recommendations.append("—")
+                status.append("Good")
+                reasons.append("")
+        elif param == "ph":
+            if not (5.5 <= value <= 8.0):
+                recommendations.append("Adjust pH level")
+                status.append("Bad")
+                reasons.append("pH out of range")
+            else:
+                recommendations.append("—")
+                status.append("Good")
+                reasons.append("")
 
-    soil_df["Recommendation"] = recommendations
-    soil_df = soil_df[["Parameter", "Current Value", "Recommendation", "Status", "Water Need"]]
+    soil_df = pd.DataFrame({
+        "Parameter": soil_params,
+        "Current Value": current_values,
+        "Recommendation": recommendations,
+        "Status": status,
+        "Reason": reasons,
+        "Water Need": ["Sufficient Water"] * len(soil_params),
+    })
+
+    soil_df = soil_df[["Parameter", "Current Value", "Recommendation", "Status", "Reason", "Water Need"]]
     st.table(soil_df)
 
     # 📈 Temperature chart
