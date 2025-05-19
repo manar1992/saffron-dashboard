@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
+import plotly.graph_objects as go
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
@@ -107,6 +108,34 @@ if not filtered_df.empty:
         st.success(f"🟢 Crop Health: {predicted_health}")
     else:
         st.error(f"🔴 Crop Health: {predicted_health}")
+
+    # ✅ Visual Health Gauge
+    health_score = {
+        "Healthy": 90,
+        "Needs Attention": 65,
+        "At Risk": 40
+    }.get(predicted_health, 50)
+
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=health_score,
+        title={'text': "🌿 Plant Health Score"},
+        gauge={
+            'axis': {'range': [0, 100]},
+            'bar': {'color': "darkgreen"},
+            'steps': [
+                {'range': [0, 50], 'color': "red"},
+                {'range': [50, 80], 'color': "orange"},
+                {'range': [80, 100], 'color': "green"},
+            ],
+            'threshold': {
+                'line': {'color': "black", 'width': 4},
+                'thickness': 0.75,
+                'value': health_score
+            }
+        }
+    ))
+    st.plotly_chart(fig, use_container_width=True)
 
     # 📆 Growth Stage
     month = selected_date.month
