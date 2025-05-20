@@ -18,7 +18,7 @@ if not os.path.exists(file_path):
     st.error(f"🚨 File '{file_path}' not found. Please upload it to the correct directory.")
     st.stop()
 
-# 📅 Read data
+# 📥 Read data
 df = pd.read_csv(file_path)
 df['date'] = pd.to_datetime(df['date'])
 
@@ -85,8 +85,8 @@ def get_growth_stage(month):
 # 🌿 Streamlit UI
 st.title("🌱 Saffron Cultivation Dashboard")
 
-# 🗓 Select date
-selected_date = st.sidebar.date_input("🗓 Select Date", df['date'].min())
+# 🗕 Select date
+selected_date = st.sidebar.date_input("🗕 Select Date", df['date'].min())
 
 # 🕒 Select hour
 time_slider = st.slider("⏰ Select Time:", 0, 23, step=1, format="%d:00")
@@ -108,29 +108,114 @@ if not filtered_df.empty:
     else:
         st.error(f"🔴 Crop Health: {predicted_health}")
 
-    # 🚦 Traffic Light Indicator
+    # 🍎 Traffic Light Indicator
     st.markdown("### 🚦 Plant Health Traffic Light")
-    health_colors = {
-        "Healthy": "green",
-        "Needs Attention": "orange",
-        "At Risk": "red"
-    }
-    active_color = health_colors.get(predicted_health, "gray")
     traffic_light_html = f"""
-    <style>
-    .traffic-container {{
-        width: 70px;
-        background-color: #333;
-        border-radius: 15px;
-        padding: 15px;
-        margin: auto;
-    }}
-    .light {{
-        width: 40px;
-        height: 40px;
-        margin: 10px auto;
-        border-radius: 50%;
-        background-color: #555;
-        opacity: 0.3;
-    }}
-    .light.green {{ background-color: green; opacity: {"1.0" if active_color == "green" else "0.3
+    <div style="width: 60px; height: 180px; background-color: #222; border-radius: 15px; padding: 10px; margin: auto;">
+      <div style="width: 40px; height: 40px; border-radius: 50%; background-color: {'green' if predicted_health == 'Healthy' else 'gray'}; margin: 5px auto;"></div>
+      <div style="width: 40px; height: 40px; border-radius: 50%; background-color: {'yellow' if predicted_health == 'Needs Attention' else 'gray'}; margin: 5px auto;"></div>
+      <div style="width: 40px; height: 40px; border-radius: 50%; background-color: {'red' if predicted_health == 'At Risk' else 'gray'}; margin: 5px auto;"></div>
+    </div>
+    """
+    st.markdown(traffic_light_html, unsafe_allow_html=True)
+
+    # 🗖 Growth Stage
+    month = selected_date.month
+    stage = get_growth_stage(month)
+    st.subheader("🪴 Growth Stage")
+    st.info(f"📌 Current Growth Stage: **{stage}**")
+
+    # ⚠️ Alerts
+    st.subheader("⚠️ Alerts & Recommendations")
+    if filtered_df['humidity'].values[0] < 40 or filtered_df['st'].values[0] < 18:
+        st.warning("🚨 Irrigation Needed: Humidity or soil moisture is below optimal level.")
+    if filtered_df['n'].values[0] < 50:
+        st.error("⚠️ Fertilizer Needed: Nitrogen is low.")
+    if not (0 <= filtered_df['p'].values[0] <= 1999):
+        st.error("⚠️ Fertilizer Needed: Phosphorus is out of range.")
+    if not (0 <= filtered_df['k'].values[0] <= 1999):
+        st.error("⚠️ Fertilizer Needed: Potassium is out of range.")
+
+    # 🪴 Soil Details
+    st.subheader("🪴 Soil Details")
+    soil_params = ["n", "p", "k", "st", "sh", "ph"]
+    current_values = [int(filtered_df[param].values[0]) for param in soil_params]
+
+    recommendations = []
+    status = []
+    reasons = []
+    for param, value in zip(soil_params, current_values):
+        if param == "n":
+            if value < 50:
+                recommendations.append("Add Nitrogen: approx. 20 units")
+                status.append("Bad")
+                reasons.append("Low nitrogen")
+            else:
+                recommendations.append("No addition needed")
+                status.append("Good")
+                reasons.append("")
+        elif param == "p":
+            if not (0 <= value <= 1999):
+                recommendations.append("Add Phosphorus: approx. 30 units")
+                status.append("Bad")
+                reasons.append("Phosphorus out of range")
+            else:
+                recommendations.append("No addition needed")
+                status.append("Good")
+                reasons.append("")
+        elif param == "k":
+            if not (0 <= value <= 1999):
+                recommendations.append("Add Potassium: approx. 25 units")
+                status.append("Bad")
+                reasons.append("Potassium out of range")
+            else:
+                recommendations.append("No addition needed")
+                status.append("Good")
+                reasons.append("")
+        elif param == "st":
+            if not (18 <= value <= 22):
+                recommendations.append("Adjust soil temp")
+                status.append("Bad")
+                reasons.append("Soil temp out of range")
+            else:
+                recommendations.append("—")
+                status.append("Good")
+                reasons.append("")
+        elif param == "sh":
+            if not (40 <= value <= 60):
+                recommendations.append("Improve soil humidity")
+                status.append("Bad")
+                reasons.append("Soil humidity out of range")
+            else:
+                recommendations.append("—")
+                status.append("Good")
+                reasons.append("")
+        elif param == "ph":
+            if not (5.5 <= value <= 8.0):
+                recommendations.append("Adjust pH level")
+                status.append("Bad")
+                reasons.append("pH out of range")
+            else:
+                recommendations.append("—")
+                status.append("Good")
+                reasons.append("")
+
+    soil_df = pd.DataFrame({
+        "Parameter": soil_params,
+        "Current Value": current_values,
+        "Recommendation": recommendations,
+        "Status": status,
+        "Reason": reasons,
+        "Water Need": ["Sufficient Water"] * len(soil_params),
+    })
+
+    soil_df = soil_df[["Parameter", "Current Value", "Recommendation", "Status", "Reason", "Water Need"]]
+    st.table(soil_df)
+
+    # 📈 Temperature chart
+    st.subheader("📈 Temperature Trend")
+    temp_chart = px.line(df[df['date'].dt.date == selected_date], x="time", y="temperature", title="Temperature Over Time")
+    st.plotly_chart(temp_chart)
+
+else:
+    st.warning("⚠️ No data available for the selected time.")
