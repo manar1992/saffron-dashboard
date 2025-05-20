@@ -195,7 +195,7 @@ else:
         elif param == "sh":
             if not (40 <= value <= 60):
                 recommendations.append("Improve soil humidity")
-                status.append("Bad")q
+                status.append("Bad")
                 reasons.append("Soil humidity out of range")
             else:
                 recommendations.append("—")
