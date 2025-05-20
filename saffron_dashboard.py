@@ -85,8 +85,8 @@ def get_growth_stage(month):
 # 🌿 Streamlit UI
 st.title("🌱 Saffron Cultivation Dashboard")
 
-# 🗕 Select date
-selected_date = st.sidebar.date_input("🗕 Select Date", df['date'].min())
+# 📅 Select date
+selected_date = st.sidebar.date_input("📅 Select Date", df['date'].min())
 
 # 🕒 Select hour
 time_slider = st.slider("⏰ Select Time:", 0, 23, step=1, format="%d:00")
@@ -103,23 +103,34 @@ if not filtered_df.empty:
     input_data = filtered_df[features].values[0]
     predicted_health = predict_crop_health(input_data)
     st.subheader("🌱 Crop Health Status")
+    # 🧪 Compute simple health score
+health_checks = {
+    "ph": 5.5 <= filtered_df['ph'].values[0] <= 8.0,
+    "temperature": 15 <= filtered_df['temperature'].values[0] <= 25,
+    "humidity": 40 <= filtered_df['humidity'].values[0] <= 60,
+    "st": 18 <= filtered_df['st'].values[0] <= 22,
+}
+score = sum(health_checks.values()) / len(health_checks)  # ratio 0–1
+score_percent = int(score * 100)
+
+# 🌡 Show progress bar
+st.subheader("📊 Plant Health Progress")
+st.progress(score)
+
+# Optional: show health score in text
+if score_percent >= 80:
+    st.success(f"✅ Health Score: {score_percent}% – Excellent")
+elif score_percent >= 50:
+    st.warning(f"⚠️ Health Score: {score_percent}% – Moderate")
+else:
+    st.error(f"🚨 Health Score: {score_percent}% – Critical")
+    
     if predicted_health == "Healthy":
         st.success(f"🟢 Crop Health: {predicted_health}")
     else:
         st.error(f"🔴 Crop Health: {predicted_health}")
 
-    # 🍎 Traffic Light Indicator
-    st.markdown("### 🚦 Plant Health Traffic Light")
-    traffic_light_html = f"""
-    <div style="width: 60px; height: 180px; background-color: #222; border-radius: 15px; padding: 10px; margin: auto;">
-      <div style="width: 40px; height: 40px; border-radius: 50%; background-color: {'green' if predicted_health == 'Healthy' else 'gray'}; margin: 5px auto;"></div>
-      <div style="width: 40px; height: 40px; border-radius: 50%; background-color: {'yellow' if predicted_health == 'Needs Attention' else 'gray'}; margin: 5px auto;"></div>
-      <div style="width: 40px; height: 40px; border-radius: 50%; background-color: {'red' if predicted_health == 'At Risk' else 'gray'}; margin: 5px auto;"></div>
-    </div>
-    """
-    st.markdown(traffic_light_html, unsafe_allow_html=True)
-
-    # 🗖 Growth Stage
+    # 📆 Growth Stage
     month = selected_date.month
     stage = get_growth_stage(month)
     st.subheader("🪴 Growth Stage")
@@ -184,7 +195,7 @@ if not filtered_df.empty:
         elif param == "sh":
             if not (40 <= value <= 60):
                 recommendations.append("Improve soil humidity")
-                status.append("Bad")
+                status.append("Bad")q
                 reasons.append("Soil humidity out of range")
             else:
                 recommendations.append("—")
