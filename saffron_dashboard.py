@@ -18,7 +18,7 @@ if not os.path.exists(file_path):
     st.error(f"🚨 File '{file_path}' not found. Please upload it to the correct directory.")
     st.stop()
 
-# 📥 Read data
+# 📅 Read data
 df = pd.read_csv(file_path)
 df['date'] = pd.to_datetime(df['date'])
 
@@ -51,7 +51,7 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_
 model = RandomForestClassifier(n_estimators=100, random_state=42)
 model.fit(X_train, y_train)
 
-# 💾 Save model
+# 📂 Save model
 joblib.dump(model, "crop_health_model.pkl")
 
 # 🚀 Load model
@@ -103,37 +103,32 @@ if not filtered_df.empty:
     input_data = filtered_df[features].values[0]
     predicted_health = predict_crop_health(input_data)
     st.subheader("🌱 Crop Health Status")
-    # 🧪 Compute simple health score
-health_checks = {
-    "ph": 5.5 <= filtered_df['ph'].values[0] <= 8.0,
-    "temperature": 15 <= filtered_df['temperature'].values[0] <= 25,
-    "humidity": 40 <= filtered_df['humidity'].values[0] <= 60,
-    "st": 18 <= filtered_df['st'].values[0] <= 22,
-}
-score = sum(health_checks.values()) / len(health_checks)  # ratio 0–1
-score_percent = int(score * 100)
 
-# 🌡 Show progress bar
-st.subheader("📊 Plant Health Progress")
-st.progress(score)
+    # 🔪 Compute simple health score
+    health_checks = {
+        "ph": 5.5 <= filtered_df['ph'].values[0] <= 8.0,
+        "temperature": 15 <= filtered_df['temperature'].values[0] <= 25,
+        "humidity": 40 <= filtered_df['humidity'].values[0] <= 60,
+        "st": 18 <= filtered_df['st'].values[0] <= 22,
+    }
+    score = sum(health_checks.values()) / len(health_checks)
+    score_percent = int(score * 100)
 
-# Optional: show health score in text
-if score_percent >= 80:
-    st.success(f"✅ Health Score: {score_percent}% – Excellent")
-elif score_percent >= 50:
-    st.warning(f"⚠️ Health Score: {score_percent}% – Moderate")
-else:
-    st.error(f"🚨 Health Score: {score_percent}% – Critical")
-    
-    if predicted_health == "Healthy":
-        st.success(f"🟢 Crop Health: {predicted_health}")
+    # 🌬 Show progress bar
+    st.subheader("📊 Plant Health Progress")
+    st.progress(score)
+
+    if score_percent >= 80:
+        st.success(f"✅ Health Score: {score_percent}% – Excellent")
+    elif score_percent >= 50:
+        st.warning(f"⚠️ Health Score: {score_percent}% – Moderate")
     else:
-        st.error(f"🔴 Crop Health: {predicted_health}")
+        st.error(f"🚨 Health Score: {score_percent}% – Critical")
 
     # 📆 Growth Stage
     month = selected_date.month
     stage = get_growth_stage(month)
-    st.subheader("🪴 Growth Stage")
+    st.subheader("🩴 Growth Stage")
     st.info(f"📌 Current Growth Stage: **{stage}**")
 
     # ⚠️ Alerts
@@ -147,8 +142,8 @@ else:
     if not (0 <= filtered_df['k'].values[0] <= 1999):
         st.error("⚠️ Fertilizer Needed: Potassium is out of range.")
 
-    # 🪴 Soil Details
-    st.subheader("🪴 Soil Details")
+    # 🩴 Soil Details
+    st.subheader("🩴 Soil Details")
     soil_params = ["n", "p", "k", "st", "sh", "ph"]
     current_values = [int(filtered_df[param].values[0]) for param in soil_params]
 
