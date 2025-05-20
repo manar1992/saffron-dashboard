@@ -128,7 +128,7 @@ if not filtered_df.empty:
     # 📆 Growth Stage
     month = selected_date.month
     stage = get_growth_stage(month)
-    st.subheader("🩴 Growth Stage")
+    st.subheader("🪴 Growth Stage")
     st.info(f"📌 Current Growth Stage: **{stage}**")
 
     # ⚠️ Alerts
@@ -142,8 +142,8 @@ if not filtered_df.empty:
     if not (0 <= filtered_df['k'].values[0] <= 1999):
         st.error("⚠️ Fertilizer Needed: Potassium is out of range.")
 
-    # 🩴 Soil Details
-    st.subheader("🩴 Soil Details")
+    # 🪴 Soil Details
+    st.subheader("🪴 Soil Details")
     soil_params = ["n", "p", "k", "st", "sh", "ph"]
     current_values = [int(filtered_df[param].values[0]) for param in soil_params]
 
