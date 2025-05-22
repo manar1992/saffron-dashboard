@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import plotly.express as px
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
@@ -104,30 +105,119 @@ if not filtered_df.empty:
     st.subheader("🌱 Crop Health Status")
     if predicted_health == "Healthy":
         st.success(f"🟢 Crop Health: {predicted_health}")
-    else:
+    elif predicted_health == "Needs Attention":
         st.error(f"🔴 Crop Health: {predicted_health}")
-
-    # 📘 Plant Story
-    st.subheader("📘 Plant Story")
-    if filtered_df['temperature'].values[0] > 27:
-        story = "🌡 It’s a hot day inside the greenhouse.\nTemperatures are slightly above ideal. Ensure proper ventilation to keep the plant stress-free. 🍃"
-    elif filtered_df['sh'].values[0] < 35:
-        story = "💧 The soil is a bit dry, and the saffron seems thirsty.\nA moderate round of irrigation is recommended to restore balance. 💦"
-    elif filtered_df['n'].values[0] < 50:
-        story = "🧪 The plant is showing signs of nutrient deficiency.\nLow nitrogen levels detected – consider a light dose of N-rich fertilizer to boost development. 🌱"
-    elif not (5.5 <= filtered_df['ph'].values[0] <= 8.0):
-        story = "⚠️ The soil pH is outside the ideal range.\nThis may limit nutrient absorption. Consider adjusting the pH to support root activity. 🪴"
-    elif (15 <= filtered_df['temperature'].values[0] <= 25 and 40 <= filtered_df['humidity'].values[0] <= 60 and 18 <= filtered_df['st'].values[0] <= 22):
-        story = "🌿 The saffron plant is thriving today! \nOptimal temperature and moisture levels are supporting strong growth. No action needed – just keep watching it flourish. 🌞"
     else:
-        story = "🚨 The saffron plant is under stress.\nSeveral parameters (like humidity and soil nutrients) are below optimal levels. Immediate attention is advised. 🌾"
-    st.info(story)
+        st.warning(f"🟠 Crop Health: {predicted_health}")
+
+    # 📖 Plant Story
+    st.subheader("📖 Plant Story")
+    if predicted_health == "Healthy":
+        st.info("🌿 The saffron plant is thriving in optimal conditions. No immediate actions are required. 😊")
+    elif predicted_health == "Needs Attention":
+        st.info("🚨 The saffron plant is under stress. Several parameters (like humidity and soil nutrients) are below optimal levels. Immediate attention is advised. 🌾")
+    elif predicted_health == "At Risk":
+        st.warning("⚠️ The saffron plant is facing critical conditions. pH or temperature is far from the recommended range. Act quickly to stabilize the environment. ❗")
+    else:
+        st.info("🤔 Unable to determine plant story.")
 
     # 📆 Growth Stage
     month = selected_date.month
     stage = get_growth_stage(month)
     st.subheader("🪴 Growth Stage")
     st.info(f"📌 Current Growth Stage: **{stage}**")
+
+    # ⚠️ Alerts & Recommendations
+    st.subheader("⚠️ Alerts & Recommendations")
+    if filtered_df['humidity'].values[0] < 40 or filtered_df['st'].values[0] < 18:
+        st.warning("🚨 Irrigation Needed: Humidity or soil moisture is below optimal level.")
+    if filtered_df['n'].values[0] < 50:
+        st.error("⚠️ Fertilizer Needed: Nitrogen is low.")
+    if not (0 <= filtered_df['p'].values[0] <= 1999):
+        st.error("⚠️ Fertilizer Needed: Phosphorus is out of range.")
+    if not (0 <= filtered_df['k'].values[0] <= 1999):
+        st.error("⚠️ Fertilizer Needed: Potassium is out of range.")
+
+    # 🪴 Soil Details
+    st.subheader("🪴 Soil Details")
+    soil_params = ["n", "p", "k", "st", "sh", "ph"]
+    current_values = [int(filtered_df[param].values[0]) for param in soil_params]
+
+    recommendations = []
+    status = []
+    reasons = []
+    for param, value in zip(soil_params, current_values):
+        if param == "n":
+            if value < 50:
+                recommendations.append("Add Nitrogen: approx. 20 units")
+                status.append("Bad")
+                reasons.append("Low nitrogen")
+            else:
+                recommendations.append("No addition needed")
+                status.append("Good")
+                reasons.append("")
+        elif param == "p":
+            if not (0 <= value <= 1999):
+                recommendations.append("Add Phosphorus: approx. 30 units")
+                status.append("Bad")
+                reasons.append("Phosphorus out of range")
+            else:
+                recommendations.append("No addition needed")
+                status.append("Good")
+                reasons.append("")
+        elif param == "k":
+            if not (0 <= value <= 1999):
+                recommendations.append("Add Potassium: approx. 25 units")
+                status.append("Bad")
+                reasons.append("Potassium out of range")
+            else:
+                recommendations.append("No addition needed")
+                status.append("Good")
+                reasons.append("")
+        elif param == "st":
+            if not (18 <= value <= 22):
+                recommendations.append("Adjust soil temp")
+                status.append("Bad")
+                reasons.append("Soil temp out of range")
+            else:
+                recommendations.append("—")
+                status.append("Good")
+                reasons.append("")
+        elif param == "sh":
+            if not (40 <= value <= 60):
+                recommendations.append("Improve soil humidity")
+                status.append("Bad")
+                reasons.append("Soil humidity out of range")
+            else:
+                recommendations.append("—")
+                status.append("Good")
+                reasons.append("")
+        elif param == "ph":
+            if not (5.5 <= value <= 8.0):
+                recommendations.append("Adjust pH level")
+                status.append("Bad")
+                reasons.append("pH out of range")
+            else:
+                recommendations.append("—")
+                status.append("Good")
+                reasons.append("")
+
+    soil_df = pd.DataFrame({
+        "Parameter": soil_params,
+        "Current Value": current_values,
+        "Recommendation": recommendations,
+        "Status": status,
+        "Reason": reasons,
+        "Water Need": ["Sufficient Water"] * len(soil_params),
+    })
+
+    soil_df = soil_df[["Parameter", "Current Value", "Recommendation", "Status", "Reason", "Water Need"]]
+    st.table(soil_df)
+
+    # 📈 Temperature chart
+    st.subheader("📈 Temperature Trend")
+    temp_chart = px.line(df[df['date'].dt.date == selected_date], x="time", y="temperature", title="Temperature Over Time")
+    st.plotly_chart(temp_chart)
 
 else:
     st.warning("⚠️ No data available for the selected time.")
