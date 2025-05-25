@@ -111,7 +111,7 @@ if not filtered_df.empty:
         st.warning(f"🟠 Crop Health: {predicted_health}")
 
     # 📖 Plant Story
-    st.subheader("📖 Plant Story")
+    #st.subheader("📖 Plant Story")
     if predicted_health == "Healthy":
         st.info("🌿 The saffron plant is thriving in optimal conditions. No immediate actions are required. 😊")
     elif predicted_health == "Needs Attention":
