@@ -7,7 +7,6 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 import joblib
 import os
-from datetime import datetime
 
 # 🟢 Page configuration
 st.set_page_config(page_title="Saffron Dashboard", layout="wide")
@@ -20,7 +19,9 @@ if not os.path.exists(file_path):
 
 # 📥 Read data
 df = pd.read_csv(file_path)
-df['date'] = pd.to_datetime(df['date'])
+df['datetime'] = pd.to_datetime(df['date'])
+df['date_only'] = df['datetime'].dt.date
+df['hour'] = df['datetime'].dt.hour
 
 # 🟢 Crop health classification
 def classify_crop_health(row):
@@ -66,38 +67,28 @@ def predict_crop_health(input_data):
         return f"❌ Prediction error: {str(e)}"
 
 # 🌱 Growth Stage logic
-def get_growth_stage(month):
-    if month in [8, 9, 10]:
-        return "Dormancy"
-    elif month == 11:
-        return "Growth Stimulation"
-    elif month in [12, 1]:
-        return "Vegetative Growth"
-    elif month == 2:
-        return "Flowering"
-    elif month in [3, 4]:
-        return "Corm Multiplication"
-    elif month == 5:
-        return "Leaf Yellowing & Dormancy Preparation"
-    else:
+def get_growth_stage(stage_val):
+    # stage موجود بالملف الجديد
+    if pd.isnull(stage_val):
         return "Unknown"
+    return stage_val
 
 # 🌿 Streamlit UI
 st.title("🌱 Saffron Cultivation Dashboard")
 
 # 📅 Select date
-selected_date = st.sidebar.date_input("📅 Select Date", df['date'].min())
-
+selected_date = st.sidebar.date_input("📅 Select Date", df['date_only'].min())
 # 🕒 Select hour
-time_slider = st.slider("⏰ Select Time:", 0, 23, step=1, format="%d:00")
-filtered_df = df[(df['date'].dt.date == selected_date) & (df['time'].astype(str).str.startswith(str(time_slider).zfill(2)))]
+time_slider = st.slider("⏰ Select Hour:", 0, 23, step=1)
+
+filtered_df = df[(df['date_only'] == selected_date) & (df['hour'] == time_slider)]
 
 # ✅ Display data if available
 if not filtered_df.empty:
     col1, col2, col3 = st.columns(3)
-    col1.metric("🌡 Temperature", f"{filtered_df['temperature'].values[0]} °C")
-    col2.metric("💧 Humidity", f"{filtered_df['humidity'].values[0]} %")
-    col3.metric("🌤 Relative Humidity", f"{filtered_df['relative_humidity'].values[0]} %")
+    col1.metric("🌡 Temperature", f"{filtered_df['temperature'].values[0]:.2f} °C")
+    col2.metric("💧 Humidity", f"{filtered_df['humidity'].values[0]:.2f} %")
+    col3.metric("🧪 pH", f"{filtered_df['ph'].values[0]:.2f}")
 
     # 🌱 Crop Health Status
     input_data = filtered_df[features].values[0]
@@ -111,7 +102,6 @@ if not filtered_df.empty:
         st.warning(f"🟠 Crop Health: {predicted_health}")
 
     # 📖 Plant Story
-    #st.subheader("📖 Plant Story")
     if predicted_health == "Healthy":
         st.info("🌿 The saffron plant is thriving in optimal conditions. No immediate actions are required. 😊")
     elif predicted_health == "Needs Attention":
@@ -122,8 +112,7 @@ if not filtered_df.empty:
         st.info("🤔 Unable to determine plant story.")
 
     # 📆 Growth Stage
-    month = selected_date.month
-    stage = get_growth_stage(month)
+    stage = get_growth_stage(filtered_df['stage'].values[0]) if 'stage' in filtered_df.columns else "Unknown"
     st.subheader("🪴 Growth Stage")
     st.info(f"📌 Current Growth Stage: **{stage}**")
 
@@ -141,7 +130,7 @@ if not filtered_df.empty:
     # 🪴 Soil Details
     st.subheader("🪴 Soil Details")
     soil_params = ["n", "p", "k", "st", "sh", "ph"]
-    current_values = [int(filtered_df[param].values[0]) for param in soil_params]
+    current_values = [float(filtered_df[param].values[0]) for param in soil_params]
 
     recommendations = []
     status = []
@@ -216,8 +205,9 @@ if not filtered_df.empty:
 
     # 📈 Temperature chart
     st.subheader("📈 Temperature Trend")
-    temp_chart = px.line(df[df['date'].dt.date == selected_date], x="time", y="temperature", title="Temperature Over Time")
+    temp_chart = px.line(df[df['date_only'] == selected_date], x="hour", y="temperature", title="Temperature Over Time")
     st.plotly_chart(temp_chart)
 
 else:
     st.warning("⚠️ No data available for the selected time.")
+
