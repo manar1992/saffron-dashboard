@@ -13,7 +13,7 @@ from datetime import datetime
 st.set_page_config(page_title="Saffron Dashboard", layout="wide")
 
 # 📂 Load dataset
-file_path = "green_house_saffron_1.csv"
+file_path = "saffron_greenhouse_synthetic_2years.csv"
 if not os.path.exists(file_path):
     st.error(f"🚨 File '{file_path}' not found. Please upload it to the correct directory.")
     st.stop()
