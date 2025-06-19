@@ -170,7 +170,7 @@ if not filtered_df.empty:
     st.markdown(
         f"""
         <div style="{card_style()}background:#254161;">
-            <span style="font-size:1.25rem;">🌾 <b>Plant Story</b></span>
+          #  <span style="font-size:1.25rem;">🌾 <b>Plant Story</b></span>
             <div style="margin-top:0.7rem; font-size:1.1rem;">
                 {story_txt}
             </div>
