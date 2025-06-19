@@ -3,9 +3,7 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objs as go
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
-import joblib
 import os
 from scipy.ndimage import gaussian_filter1d
 
@@ -41,11 +39,12 @@ def stat_card(icon, label, value, unit):
 
 # ---------- Data Loading ----------
 file_path = "saffron_greenhouse_synthetic_2years.csv"
-if not os.path.exists(file_path):
-    st.error(f"🚨 File '{file_path}' not found. Please upload it.")
+try:
+    df = pd.read_csv(file_path)
+except Exception as e:
+    st.error(f"🚨 Error loading file '{file_path}': {e}")
     st.stop()
 
-df = pd.read_csv(file_path)
 df['datetime'] = pd.to_datetime(df['date'])
 df['date_only'] = df['datetime'].dt.date
 df['hour'] = df['datetime'].dt.hour
@@ -78,22 +77,23 @@ def classify_crop_health(row):
 df['crop_health'] = df.apply(classify_crop_health, axis=1)
 label_encoder = LabelEncoder()
 df['crop_health_label'] = label_encoder.fit_transform(df['crop_health'])
-features = ["temperature", "humidity", "st", "ph", "n", "p", "k"]
-X = df[features]
-y = df["crop_health_label"]
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
-model = RandomForestClassifier(n_estimators=100, random_state=42)
-model.fit(X_train, y_train)
-joblib.dump(model, "crop_health_model.pkl")
-loaded_model = joblib.load("crop_health_model.pkl")
+# فقط درّب النموذج مرة واحدة لكل تشغيل وليس كل تحديث للواجهة
+@st.cache_resource(show_spinner=False)
+def get_model():
+    features = ["temperature", "humidity", "st", "ph", "n", "p", "k"]
+    X = df[features]
+    y = df["crop_health_label"]
+    model = RandomForestClassifier(n_estimators=100, random_state=42)
+    model.fit(X, y)
+    return model, label_encoder, features
 
-def predict_crop_health(input_data):
-    try:
-        prediction = loaded_model.predict([input_data])[0]
-        return label_encoder.inverse_transform([prediction])[0]
-    except Exception as e:
-        return f"❌ Prediction error: {str(e)}"
+model, label_encoder, features = get_model()
+
+def predict_crop_health(input_row):
+    X_input = pd.DataFrame([input_row], columns=features)
+    prediction = model.predict(X_input)[0]
+    return label_encoder.inverse_transform([prediction])[0]
 
 # ========== Sidebar ==========
 with st.sidebar:
@@ -142,7 +142,7 @@ if not filtered_df.empty:
             """, unsafe_allow_html=True
         )
     with colB:
-        input_data = filtered_df[features].values[0]
+        input_data = [filtered_df[feature].values[0] for feature in features]
         predicted_health = predict_crop_health(input_data)
         health_color = "#4CAF50" if predicted_health == "Healthy" else "#ff9800" if predicted_health == "Needs Attention" else "#e53935"
         st.markdown(
@@ -152,14 +152,32 @@ if not filtered_df.empty:
                 <div style="margin-top:0.5rem; font-size:1.13rem;">
                     <span style="color:{health_color}; font-weight:bold;">{predicted_health}</span>
                 </div>
-                <div style="margin-top:0.5rem;">
-                    {"🌿 Optimal. No immediate action required." if predicted_health == "Healthy" else
-                     "⚠️ Several parameters are below optimal. Immediate attention advised." if predicted_health == "Needs Attention" else
-                     "❗ Critical! Act quickly to stabilize the environment."}
-                </div>
             </div>
             """, unsafe_allow_html=True
         )
+
+# --- Plant Story Card ---
+if not filtered_df.empty:
+    story_txt = ""
+    if predicted_health == "Healthy":
+        story_txt = "🌿 The saffron plant is thriving in optimal conditions. No immediate actions are required. 😊"
+    elif predicted_health == "Needs Attention":
+        story_txt = "🎉 The saffron plant is under stress. Several parameters (like humidity and soil nutrients) are below optimal levels. Immediate attention is advised. 🌾"
+    elif predicted_health == "At Risk":
+        story_txt = "🚨 The saffron plant is facing critical conditions. pH or temperature is far from the recommended range. Act quickly to stabilize the environment. ❗"
+    else:
+        story_txt = "🤔 Unable to determine plant story."
+
+    st.markdown(
+        f"""
+        <div style="{card_style()}background:#254161;">
+            <span style="font-size:1.25rem;">🌾 <b>Plant Story</b></span>
+            <div style="margin-top:0.7rem; font-size:1.1rem;">
+                {story_txt}
+            </div>
+        </div>
+        """, unsafe_allow_html=True
+    )
 
 # --- Alerts & Recommendations ---
 if not filtered_df.empty:
@@ -296,4 +314,3 @@ if not filtered_df.empty:
     st.markdown("</div>", unsafe_allow_html=True)
 
 # End dashboard
-
