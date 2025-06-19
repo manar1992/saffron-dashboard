@@ -28,10 +28,10 @@ def card_style():
 def stat_card(icon, label, value, unit):
     st.markdown(
         f"""
-        <div style="{card_style()} text-align:center; display:flex; flex-direction:column; align-items:center; min-width:160px;">
-            <div style="font-size:2.2rem;">{icon}</div>
-            <div style="font-size:1.7rem; font-weight:bold;">{value} <span style="font-size:1.1rem; color:#bbb;">{unit}</span></div>
-            <div style="font-size:1.05rem; margin-top:0.15rem; color:#F7CA70;">{label}</div>
+        <div style="{card_style()} text-align:center; display:flex; flex-direction:column; align-items:center; min-width:110px;">
+            <div style="font-size:2rem;">{icon}</div>
+            <div style="font-size:1.5rem; font-weight:bold;">{value} <span style="font-size:1rem; color:#bbb;">{unit}</span></div>
+            <div style="font-size:1rem; margin-top:0.08rem; color:#F7CA70;">{label}</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -100,6 +100,17 @@ with st.sidebar:
     st.markdown("<h2 style='color:#FFA500;'>🌱 Saffron Dashboard</h2>", unsafe_allow_html=True)
     selected_date = st.date_input("📅 Select Date", df['date_only'].min())
     time_slider = st.slider("🕒 Select Hour:", 0, 23, step=1)
+
+    # Show Growth Stage as a badge under date/time
+    selected_row = df[(df['date_only'] == selected_date) & (df['hour'] == time_slider)]
+    if not selected_row.empty:
+        growth_stage = selected_row['stage'].values[0]
+        st.markdown(
+            f"""<div style="background:#223; color:#FFD700; padding:0.32rem 0.95rem; border-radius:11px; margin-top:0.7rem; display:inline-block; font-size:1.06rem;">
+            🌱 <b>Stage:</b> {growth_stage}
+            </div>""",
+            unsafe_allow_html=True
+        )
     st.markdown("<hr style='border:1px solid #7B3F00; margin-top:1.5rem;'>", unsafe_allow_html=True)
 
 filtered_df = df[(df['date_only'] == selected_date) & (df['hour'] == time_slider)]
@@ -115,46 +126,34 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- Quick Stats ---
+# --- Mini Cards (Temperature, Humidity, pH) in one row ---
 if not filtered_df.empty:
-    st.markdown("<div style='display:flex; gap:32px;'>", unsafe_allow_html=True)
-    stat_card("🌡️", "Temperature", f"{filtered_df['temperature'].values[0]:.2f}", "°C")
-    stat_card("💧", "Humidity", f"{filtered_df['humidity'].values[0]:.2f}", "%")
-    stat_card("🧪", "pH", f"{filtered_df['ph'].values[0]:.2f}", "")
-    st.markdown("</div>", unsafe_allow_html=True)
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        stat_card("🌡️", "Temperature", f"{filtered_df['temperature'].values[0]:.2f}", "°C")
+    with col2:
+        stat_card("💧", "Humidity", f"{filtered_df['humidity'].values[0]:.2f}", "%")
+    with col3:
+        stat_card("🧪", "pH", f"{filtered_df['ph'].values[0]:.2f}", "")
     st.markdown("<br>", unsafe_allow_html=True)
 else:
     st.warning("⚠️ No data available for the selected time.")
 
-# --- Growth Stage & Health Cards ---
+# --- Crop Health Status Card فقط ---
 if not filtered_df.empty:
-    # Cards layout (Growth Stage, Health)
-    colA, colB = st.columns([1, 2])
-    with colA:
-        st.markdown(
-            f"""
-            <div style="{card_style()}background:#283544;">
-                <span style="font-size:1.25rem;">🪴 <b>Growth Stage</b></span><br>
-                <div style="margin-top:0.55rem;">
-                    <span style="font-size:1.13rem; color:#B5C5DF;">📌 Current Growth Stage: <b>{filtered_df['stage'].values[0]}</b></span>
-                </div>
+    input_data = [filtered_df[feature].values[0] for feature in features]
+    predicted_health = predict_crop_health(input_data)
+    health_color = "#4CAF50" if predicted_health == "Healthy" else "#ff9800" if predicted_health == "Needs Attention" else "#e53935"
+    st.markdown(
+        f"""
+        <div style="{card_style()}background:#232c2d;">
+            <span style="font-size:1.25rem;">🌱 <b>Crop Health Status</b></span><br>
+            <div style="margin-top:0.5rem; font-size:1.13rem;">
+                <span style="color:{health_color}; font-weight:bold;">{predicted_health}</span>
             </div>
-            """, unsafe_allow_html=True
-        )
-    with colB:
-        input_data = [filtered_df[feature].values[0] for feature in features]
-        predicted_health = predict_crop_health(input_data)
-        health_color = "#4CAF50" if predicted_health == "Healthy" else "#ff9800" if predicted_health == "Needs Attention" else "#e53935"
-        st.markdown(
-            f"""
-            <div style="{card_style()}background:#232c2d;">
-                <span style="font-size:1.25rem;">🩺 <b>Crop Health Status</b></span><br>
-                <div style="margin-top:0.5rem; font-size:1.13rem;">
-                    <span style="color:{health_color}; font-weight:bold;">{predicted_health}</span>
-                </div>
-            </div>
-            """, unsafe_allow_html=True
-        )
+        </div>
+        """, unsafe_allow_html=True
+    )
 
 # --- Plant Story Card ---
 if not filtered_df.empty:
