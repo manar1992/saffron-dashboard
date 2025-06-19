@@ -23,15 +23,36 @@ df['datetime'] = pd.to_datetime(df['date'])
 df['date_only'] = df['datetime'].dt.date
 df['hour'] = df['datetime'].dt.hour
 
+# 🟢 المثالي حسب الجداول المرفقة
+IDEAL = {
+    "ph_min": 6.0,
+    "ph_max": 8.0,
+    "temperature_min": 15,
+    "temperature_max": 25,
+    "humidity_min": 40,
+    "humidity_max": 60,
+    "n_min": 20,    # الحد الأدنى قبل الزراعة (أو في النمو المبكر)
+    "n_max": 60,    # أعلى حد في النمو المتأخر
+    "p_min": 60,
+    "p_max": 80,
+    "k_min": 40,
+    "k_max": 60,
+}
+
 # 🟢 Crop health classification
 def classify_crop_health(row):
-    if row['ph'] < 5.5 or row['ph'] > 8.0:
+    if not (IDEAL["ph_min"] <= row['ph'] <= IDEAL["ph_max"]):
         return "At Risk"
-    elif row['temperature'] < 15 or row['temperature'] > 25:
+    elif not (IDEAL["temperature_min"] <= row['temperature'] <= IDEAL["temperature_max"]):
         return "Needs Attention"
-    elif row['humidity'] < 40 or row['humidity'] > 60:
+    elif not (IDEAL["humidity_min"] <= row['humidity'] <= IDEAL["humidity_max"]):
         return "Needs Attention"
-    elif row['st'] < 18 or row['st'] > 22:
+    # في الجدول مثالي النيتروجين والفوسفور والبوتاسيوم بالهكتار؛ لكن نستخدمها فقط لو تحت النطاق الأدنى للتنبيه
+    elif row['n'] < IDEAL["n_min"]:
+        return "Needs Attention"
+    elif row['p'] < IDEAL["p_min"]:
+        return "Needs Attention"
+    elif row['k'] < IDEAL["k_min"]:
         return "Needs Attention"
     else:
         return "Healthy"
@@ -66,24 +87,13 @@ def predict_crop_health(input_data):
     except Exception as e:
         return f"❌ Prediction error: {str(e)}"
 
-# 🌱 Growth Stage logic
-def get_growth_stage(stage_val):
-    # stage موجود بالملف الجديد
-    if pd.isnull(stage_val):
-        return "Unknown"
-    return stage_val
-
 # 🌿 Streamlit UI
 st.title("🌱 Saffron Cultivation Dashboard")
 
-# 📅 Select date
 selected_date = st.sidebar.date_input("📅 Select Date", df['date_only'].min())
-# 🕒 Select hour
 time_slider = st.slider("⏰ Select Hour:", 0, 23, step=1)
-
 filtered_df = df[(df['date_only'] == selected_date) & (df['hour'] == time_slider)]
 
-# ✅ Display data if available
 if not filtered_df.empty:
     col1, col2, col3 = st.columns(3)
     col1.metric("🌡 Temperature", f"{filtered_df['temperature'].values[0]:.2f} °C")
@@ -101,31 +111,25 @@ if not filtered_df.empty:
     else:
         st.warning(f"🟠 Crop Health: {predicted_health}")
 
-    # 📖 Plant Story
-    if predicted_health == "Healthy":
-        st.info("🌿 The saffron plant is thriving in optimal conditions. No immediate actions are required. 😊")
-    elif predicted_health == "Needs Attention":
-        st.info("🚨 The saffron plant is under stress. Several parameters (like humidity and soil nutrients) are below optimal levels. Immediate attention is advised. 🌾")
-    elif predicted_health == "At Risk":
-        st.warning("⚠️ The saffron plant is facing critical conditions. pH or temperature is far from the recommended range. Act quickly to stabilize the environment. ❗")
-    else:
-        st.info("🤔 Unable to determine plant story.")
-
     # 📆 Growth Stage
-    stage = get_growth_stage(filtered_df['stage'].values[0]) if 'stage' in filtered_df.columns else "Unknown"
+    stage = filtered_df['stage'].values[0] if 'stage' in filtered_df.columns else "Unknown"
     st.subheader("🪴 Growth Stage")
     st.info(f"📌 Current Growth Stage: **{stage}**")
 
     # ⚠️ Alerts & Recommendations
     st.subheader("⚠️ Alerts & Recommendations")
-    if filtered_df['humidity'].values[0] < 40 or filtered_df['st'].values[0] < 18:
-        st.warning("🚨 Irrigation Needed: Humidity or soil moisture is below optimal level.")
-    if filtered_df['n'].values[0] < 50:
-        st.error("⚠️ Fertilizer Needed: Nitrogen is low.")
-    if not (0 <= filtered_df['p'].values[0] <= 1999):
-        st.error("⚠️ Fertilizer Needed: Phosphorus is out of range.")
-    if not (0 <= filtered_df['k'].values[0] <= 1999):
-        st.error("⚠️ Fertilizer Needed: Potassium is out of range.")
+    if not (IDEAL["humidity_min"] <= filtered_df['humidity'].values[0] <= IDEAL["humidity_max"]):
+        st.warning("🚨 Humidity out of the ideal range (40–60%). Adjust irrigation as needed.")
+    if not (IDEAL["temperature_min"] <= filtered_df['temperature'].values[0] <= IDEAL["temperature_max"]):
+        st.warning("🌡️ Temperature out of the ideal range (15–25°C).")
+    if not (IDEAL["ph_min"] <= filtered_df['ph'].values[0] <= IDEAL["ph_max"]):
+        st.warning("🧪 pH out of the ideal range (6.0–8.0).")
+    if filtered_df['n'].values[0] < IDEAL["n_min"]:
+        st.error("⚠️ Nitrogen is below the ideal range (20–60 kg/ha).")
+    if filtered_df['p'].values[0] < IDEAL["p_min"]:
+        st.error("⚠️ Phosphorus is below the ideal range (60–80 kg/ha).")
+    if filtered_df['k'].values[0] < IDEAL["k_min"]:
+        st.error("⚠️ Potassium is below the ideal range (40–60 kg/ha).")
 
     # 🪴 Soil Details
     st.subheader("🪴 Soil Details")
@@ -137,57 +141,69 @@ if not filtered_df.empty:
     reasons = []
     for param, value in zip(soil_params, current_values):
         if param == "n":
-            if value < 50:
-                recommendations.append("Add Nitrogen: approx. 20 units")
+            if value < IDEAL["n_min"]:
+                recommendations.append("Add Nitrogen to reach at least 20 kg/ha")
                 status.append("Bad")
                 reasons.append("Low nitrogen")
+            elif value > IDEAL["n_max"]:
+                recommendations.append("Reduce Nitrogen application")
+                status.append("Check")
+                reasons.append("High nitrogen")
             else:
-                recommendations.append("No addition needed")
+                recommendations.append("Optimal")
                 status.append("Good")
                 reasons.append("")
         elif param == "p":
-            if not (0 <= value <= 1999):
-                recommendations.append("Add Phosphorus: approx. 30 units")
+            if value < IDEAL["p_min"]:
+                recommendations.append("Add Phosphorus to reach at least 60 kg/ha")
                 status.append("Bad")
-                reasons.append("Phosphorus out of range")
+                reasons.append("Low phosphorus")
+            elif value > IDEAL["p_max"]:
+                recommendations.append("Reduce Phosphorus application")
+                status.append("Check")
+                reasons.append("High phosphorus")
             else:
-                recommendations.append("No addition needed")
+                recommendations.append("Optimal")
                 status.append("Good")
                 reasons.append("")
         elif param == "k":
-            if not (0 <= value <= 1999):
-                recommendations.append("Add Potassium: approx. 25 units")
+            if value < IDEAL["k_min"]:
+                recommendations.append("Add Potassium to reach at least 40 kg/ha")
                 status.append("Bad")
-                reasons.append("Potassium out of range")
+                reasons.append("Low potassium")
+            elif value > IDEAL["k_max"]:
+                recommendations.append("Reduce Potassium application")
+                status.append("Check")
+                reasons.append("High potassium")
             else:
-                recommendations.append("No addition needed")
+                recommendations.append("Optimal")
+                status.append("Good")
+                reasons.append("")
+        elif param == "ph":
+            if not (IDEAL["ph_min"] <= value <= IDEAL["ph_max"]):
+                recommendations.append("Adjust pH to 6.0–8.0")
+                status.append("Bad")
+                reasons.append("pH out of range")
+            else:
+                recommendations.append("Optimal")
                 status.append("Good")
                 reasons.append("")
         elif param == "st":
             if not (18 <= value <= 22):
                 recommendations.append("Adjust soil temp")
-                status.append("Bad")
-                reasons.append("Soil temp out of range")
+                status.append("Check")
+                reasons.append("Soil temp out of general range")
             else:
-                recommendations.append("—")
+                recommendations.append("Optimal")
                 status.append("Good")
                 reasons.append("")
         elif param == "sh":
-            if not (40 <= value <= 60):
-                recommendations.append("Improve soil humidity")
-                status.append("Bad")
+            if not (IDEAL["humidity_min"] <= value <= IDEAL["humidity_max"]):
+                recommendations.append("Adjust soil humidity")
+                status.append("Check")
                 reasons.append("Soil humidity out of range")
             else:
-                recommendations.append("—")
-                status.append("Good")
-                reasons.append("")
-        elif param == "ph":
-            if not (5.5 <= value <= 8.0):
-                recommendations.append("Adjust pH level")
-                status.append("Bad")
-                reasons.append("pH out of range")
-            else:
-                recommendations.append("—")
+                recommendations.append("Optimal")
                 status.append("Good")
                 reasons.append("")
 
@@ -197,10 +213,8 @@ if not filtered_df.empty:
         "Recommendation": recommendations,
         "Status": status,
         "Reason": reasons,
-        "Water Need": ["Sufficient Water"] * len(soil_params),
     })
 
-    soil_df = soil_df[["Parameter", "Current Value", "Recommendation", "Status", "Reason", "Water Need"]]
     st.table(soil_df)
 
     # 📈 Temperature chart
