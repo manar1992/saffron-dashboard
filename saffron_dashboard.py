@@ -1,16 +1,16 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import plotly.graph_objs as go
 import joblib
 import os
 from scipy.ndimage import gaussian_filter1d
+import plotly.graph_objs as go
 
 st.set_page_config(page_title="Saffron Dashboard", layout="wide", initial_sidebar_state="expanded")
 
 # --------- Theme & Icons ---------
-PRIMARY_COLOR = "#7B3F00"
-SECONDARY_COLOR = "#FFD700"
+PRIMARY_COLOR = "#7B3F00"    # Saffron brown
+SECONDARY_COLOR = "#FFD700"  # Saffron yellow
 BG_CARD = "#20262e"
 TEXT_COLOR = "#FFF"
 
@@ -38,36 +38,69 @@ def stat_card(icon, label, value, unit):
 
 # ---------- Data Loading ----------
 file_path = "saffron_greenhouse_synthetic_2years.csv"
-try:
-    df = pd.read_csv(file_path)
-except Exception as e:
-    st.error(f"🚨 Error loading file '{file_path}': {e}")
+if not os.path.exists(file_path):
+    st.error(f"🚨 File '{file_path}' not found. Please upload it.")
     st.stop()
 
+df = pd.read_csv(file_path)
 df['datetime'] = pd.to_datetime(df['date'])
 df['date_only'] = df['datetime'].dt.date
 df['hour'] = df['datetime'].dt.hour
 df['month'] = df['datetime'].dt.month
 
-# ----------- Load ML Models ----------
-try:
-    clf_model = joblib.load('clf_model.pkl')
-    reg_model = joblib.load('reg_model.pkl')
-    model_fertilization_need = joblib.load('model_fertilization_need.pkl')
-    model_fertilization_type = joblib.load('model_fertilization_type.pkl')
-    model_fertilization_amount = joblib.load('model_fertilization_amount.pkl')
-    fertilizer_label_encoder = joblib.load('label_encoder_type.pkl')
-except Exception as e:
-    st.error(f"🚨 Error loading one of the models: {e}")
-    st.stop()
+for col in ["sc", "sh", "st", "n", "p", "k", "ph"]:
+    if col not in df.columns:
+        df[col] = 0
 
-# ========== Sidebar ==========
+IDEAL = {
+    "ph_min": 6.0, "ph_max": 8.0,
+    "temperature_min": 15, "temperature_max": 25,
+    "humidity_min": 40, "humidity_max": 60,
+    "n_min": 20, "n_max": 60,
+    "p_min": 60, "p_max": 80,
+    "k_min": 40, "k_max": 60,
+}
+
+def classify_crop_health(row):
+    if not (IDEAL["ph_min"] <= row['ph'] <= IDEAL["ph_max"]):
+        return "At Risk"
+    elif not (IDEAL["temperature_min"] <= row['temperature'] <= IDEAL["temperature_max"]):
+        return "Needs Attention"
+    elif not (IDEAL["humidity_min"] <= row['humidity'] <= IDEAL["humidity_max"]):
+        return "Needs Attention"
+    elif row['n'] < IDEAL["n_min"]:
+        return "Needs Attention"
+    elif row['p'] < IDEAL["p_min"]:
+        return "Needs Attention"
+    elif row['k'] < IDEAL["k_min"]:
+        return "Needs Attention"
+    else:
+        return "Healthy"
+
+df['crop_health'] = df.apply(classify_crop_health, axis=1)
+
+# --- Load all models once ---
+@st.cache_resource(show_spinner=False)
+def load_models():
+    try:
+        model_fert_need = joblib.load("model_fertilization_need.pkl")
+        model_fert_type = joblib.load("model_fertilization_type.pkl")
+        model_fert_amount = joblib.load("model_fertilization_amount.pkl")
+        le_type = joblib.load("label_encoder_type.pkl")
+        clf_model = joblib.load("clf_model.pkl")
+        reg_model = joblib.load("reg_model.pkl")
+    except Exception as e:
+        st.error(f"❌ Error loading one of the models: {e}")
+        st.stop()
+    return model_fert_need, model_fert_type, model_fert_amount, le_type, clf_model, reg_model
+
+model_fert_need, model_fert_type, model_fert_amount, le_type, clf_model, reg_model = load_models()
+
+# ======== Sidebar ========
 with st.sidebar:
     st.markdown("<h2 style='color:#FFA500;'>🌱 Saffron Dashboard</h2>", unsafe_allow_html=True)
     selected_date = st.date_input("📅 Select Date", df['date_only'].min())
     time_slider = st.slider("🕒 Select Hour:", 0, 23, step=1)
-
-    # Show Growth Stage as a badge under date/time
     selected_row = df[(df['date_only'] == selected_date) & (df['hour'] == time_slider)]
     if not selected_row.empty:
         growth_stage = selected_row['stage'].values[0]
@@ -105,60 +138,182 @@ if not filtered_df.empty:
 else:
     st.warning("⚠️ No data available for the selected time.")
 
-# --- ML Prediction Section ---
+# --- Crop Health Status Card ---
 if not filtered_df.empty:
-    # Prepare feature vectors
-    irrigation_features = ['temperature', 'humidity', 'st', 'sh', 'month']
-    fert_features = ["temperature", "humidity", "ph", "sc", "sh", "st", "n", "p", "k", "month"]
-    irrigation_input = filtered_df[irrigation_features].astype(float).values[0]
-    fert_input = filtered_df[fert_features].astype(float).values[0]
-
-    # Irrigation Prediction
-    irrigation_need = clf_model.predict([irrigation_input])[0]
-    if irrigation_need == 1:
-        irrigation_amount = reg_model.predict([irrigation_input])[0]
-    else:
-        irrigation_amount = 0
-
-    # Fertilization Prediction
-    fert_need = model_fertilization_need.predict([fert_input])[0]
-    if fert_need == 1:
-        fert_type = model_fertilization_type.predict([fert_input])[0]
-        fert_type_label = fertilizer_label_encoder.inverse_transform([fert_type])[0]
-        fert_amount = model_fertilization_amount.predict([fert_input])[0]
-    else:
-        fert_type_label = "None"
-        fert_amount = 0
-
-    # --- Irrigation Card ---
+    crop_health = filtered_df['crop_health'].values[0]
+    health_color = "#4CAF50" if crop_health == "Healthy" else "#ff9800" if crop_health == "Needs Attention" else "#e53935"
     st.markdown(
         f"""
-        <div style="{card_style()}background:#222;">
-            <span style="font-size:1.25rem;">💧 <b>Irrigation Recommendation</b></span><br>
+        <div style="{card_style()}background:#232c2d;">
+            <span style="font-size:1.25rem;">🌱 <b>Crop Health Status</b></span><br>
             <div style="margin-top:0.5rem; font-size:1.13rem;">
-                <b>Needs Irrigation:</b> <span style="color:#FFD700;">{'Yes' if irrigation_need == 1 else 'No'}</span>
+                <span style="color:{health_color}; font-weight:bold;">{crop_health}</span>
             </div>
-            {"<div style='margin-top:0.5rem;'><b>Recommended Amount:</b> <span style='color:#4CAF50;'>{:.1f} ml/m²</span></div>".format(irrigation_amount) if irrigation_need == 1 else ""}
         </div>
         """, unsafe_allow_html=True
     )
 
-    # --- Fertilization Card ---
+# --- Plant Story Card ---
+if not filtered_df.empty:
+    crop_health = filtered_df['crop_health'].values[0]
+    story_txt = ""
+    if crop_health == "Healthy":
+        story_txt = "🌿 The saffron plant is thriving in optimal conditions. No immediate actions are required. 😊"
+    elif crop_health == "Needs Attention":
+        story_txt = "🎉 The saffron plant is under stress. Several parameters (like humidity and soil nutrients) are below optimal levels. Immediate attention is advised. 🌾"
+    elif crop_health == "At Risk":
+        story_txt = "🚨 The saffron plant is facing critical conditions. pH or temperature is far from the recommended range. Act quickly to stabilize the environment. ❗"
+    else:
+        story_txt = "🤔 Unable to determine plant story."
     st.markdown(
         f"""
         <div style="{card_style()}background:#254161;">
-            <span style="font-size:1.25rem;">🧪 <b>Fertilization Recommendation</b></span><br>
-            <div style="margin-top:0.5rem; font-size:1.13rem;">
-                <b>Needs Fertilization:</b> <span style="color:#FFD700;">{'Yes' if fert_need == 1 else 'No'}</span>
+            <div style="margin-top:0.7rem; font-size:1.1rem;">
+                {story_txt}
             </div>
-            {f"<div style='margin-top:0.5rem;'><b>Type:</b> <span style='color:#4CAF50;'>{fert_type_label}</span></div>" if fert_need == 1 else ""}
-            {f"<div style='margin-top:0.5rem;'><b>Amount:</b> <span style='color:#4CAF50;'>{fert_amount:.1f} kg/ha</span></div>" if fert_need == 1 else ""}
         </div>
         """, unsafe_allow_html=True
     )
 
-# يمكنك هنا إبقاء جداول وتحليلات أخرى مثل soil details, charts...
-# (لم أغير بقية الكود الخاص بالجداول أو المخططات حتى لا تزيد التعقيد)
+# --- Alerts & Recommendations ---
+if not filtered_df.empty:
+    alerts = []
+    if not (IDEAL["humidity_min"] <= filtered_df['humidity'].values[0] <= IDEAL["humidity_max"]):
+        alerts.append("💧 <b>Humidity out of range!</b> Adjust irrigation (40–60%).")
+    if not (IDEAL["temperature_min"] <= filtered_df['temperature'].values[0] <= IDEAL["temperature_max"]):
+        alerts.append("🌡️ <b>Temperature out of range!</b> Optimal: 15–25°C.")
+    if not (IDEAL["ph_min"] <= filtered_df['ph'].values[0] <= IDEAL["ph_max"]):
+        alerts.append("🧪 <b>pH out of range!</b> (6.0–8.0).")
+    if filtered_df['n'].values[0] < IDEAL["n_min"]:
+        alerts.append("🪴 <b>Nitrogen is low.</b> (Add N to reach at least 20 kg/ha).")
+    if filtered_df['p'].values[0] < IDEAL["p_min"]:
+        alerts.append("🪴 <b>Phosphorus is low.</b> (Add P to reach at least 60 kg/ha).")
+    if filtered_df['k'].values[0] < IDEAL["k_min"]:
+        alerts.append("🪴 <b>Potassium is low.</b> (Add K to reach at least 40 kg/ha).")
+    if alerts:
+        st.markdown(
+            f"""
+            <div style="{card_style()}background:#391E1A;">
+                <span style="font-size:1.2rem; color:#FFD700;"><b>⚠️ Alerts & Recommendations</b></span>
+                <ul style="margin-top:0.7rem;">
+                {''.join([f"<li style='margin-bottom:0.4rem;'>{a}</li>" for a in alerts])}
+                </ul>
+            </div>
+            """, unsafe_allow_html=True
+        )
+
+# --- Soil Details Table ---
+if not filtered_df.empty:
+    soil_params = ["n", "p", "k", "st", "sh", "ph"]
+    current_values = [float(filtered_df[param].values[0]) for param in soil_params]
+    recommendations, status, reasons = [], [], []
+    for param, value in zip(soil_params, current_values):
+        if param == "n":
+            if value < IDEAL["n_min"]:
+                recommendations.append("Add N to ≥20 kg/ha")
+                status.append("Bad")
+                reasons.append("Low nitrogen")
+            elif value > IDEAL["n_max"]:
+                recommendations.append("Reduce N")
+                status.append("Check")
+                reasons.append("High nitrogen")
+            else:
+                recommendations.append("Optimal")
+                status.append("Good")
+                reasons.append("")
+        elif param == "p":
+            if value < IDEAL["p_min"]:
+                recommendations.append("Add P to ≥60 kg/ha")
+                status.append("Bad")
+                reasons.append("Low phosphorus")
+            elif value > IDEAL["p_max"]:
+                recommendations.append("Reduce P")
+                status.append("Check")
+                reasons.append("High phosphorus")
+            else:
+                recommendations.append("Optimal")
+                status.append("Good")
+                reasons.append("")
+        elif param == "k":
+            if value < IDEAL["k_min"]:
+                recommendations.append("Add K to ≥40 kg/ha")
+                status.append("Bad")
+                reasons.append("Low potassium")
+            elif value > IDEAL["k_max"]:
+                recommendations.append("Reduce K")
+                status.append("Check")
+                reasons.append("High potassium")
+            else:
+                recommendations.append("Optimal")
+                status.append("Good")
+                reasons.append("")
+        elif param == "ph":
+            if not (IDEAL["ph_min"] <= value <= IDEAL["ph_max"]):
+                recommendations.append("Adjust to 6.0–8.0")
+                status.append("Bad")
+                reasons.append("pH out of range")
+            else:
+                recommendations.append("Optimal")
+                status.append("Good")
+                reasons.append("")
+        elif param == "st":
+            if not (18 <= value <= 22):
+                recommendations.append("Adjust soil temp")
+                status.append("Check")
+                reasons.append("Soil temp out of range")
+            else:
+                recommendations.append("Optimal")
+                status.append("Good")
+                reasons.append("")
+        elif param == "sh":
+            if not (IDEAL["humidity_min"] <= value <= IDEAL["humidity_max"]):
+                recommendations.append("Adjust soil humidity")
+                status.append("Check")
+                reasons.append("Soil humidity out of range")
+            else:
+                recommendations.append("Optimal")
+                status.append("Good")
+                reasons.append("")
+
+    soil_df = pd.DataFrame({
+        "Parameter": soil_params,
+        "Current Value": current_values,
+        "Recommendation": recommendations,
+        "Status": status,
+        "Reason": reasons,
+    })
+    st.markdown(f"<div style='{card_style()}background:#1A212B;'><span style='font-size:1.19rem;'>🪴 <b>Soil Details</b></span></div>", unsafe_allow_html=True)
+    st.dataframe(soil_df, hide_index=True, use_container_width=True)
+
+# --- Fertilization & Irrigation Model Predictions ---
+if not filtered_df.empty:
+    # تجهيز فيتشرز التسميد
+    fertilization_features = ["temperature", "humidity", "ph", "sc", "sh", "st", "n", "p", "k", "month"]
+    fert_input = filtered_df.iloc[0][fertilization_features].values.reshape(1, -1)
+    fert_need = model_fert_need.predict(fert_input)[0]
+    if fert_need == 1:
+        fert_type = le_type.inverse_transform(model_fert_type.predict(fert_input))[0]
+        fert_amount = model_fert_amount.predict(fert_input)[0]
+        fert_type_str = f"Type: {fert_type}, Amount: {fert_amount:.1f} kg/ha"
+    else:
+        fert_type_str = "No fertilization needed."
+    # فيتشرز الري
+    irrigation_features = ["temperature", "humidity", "st", "sh", "month"]
+    irrig_input = filtered_df.iloc[0][irrigation_features].values.reshape(1, -1)
+    irrig_need = clf_model.predict(irrig_input)[0]
+    if irrig_need == 1:
+        irrig_amount = reg_model.predict(irrig_input)[0]
+        irrig_str = f"Amount: {irrig_amount:.1f} ml"
+    else:
+        irrig_str = "No irrigation needed."
+    st.markdown(
+        f"""
+        <div style="{card_style()}background:#232c2d;">
+            <span style="font-size:1.1rem;">🧪 <b>Fertilization:</b> {fert_type_str}</span><br>
+            <span style="font-size:1.1rem;">💧 <b>Irrigation:</b> {irrig_str}</span>
+        </div>
+        """, unsafe_allow_html=True
+    )
 
 # --- Smooth Temperature Chart ---
 if not filtered_df.empty:
@@ -182,5 +337,3 @@ if not filtered_df.empty:
     )
     st.plotly_chart(fig, use_container_width=True)
     st.markdown("</div>", unsafe_allow_html=True)
-
-# End dashboard
