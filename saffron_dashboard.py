@@ -118,20 +118,20 @@ else:
     st.warning("⚠️ No data available for the selected time.")
 
 # -------------- القواعد الزراعية للتحكم بالتوصيات -----------------
-def get_irrigation_recommendation(growth_stage, sh, irrigation_amount_ml):
+def get_irrigation_recommendation(growth_stage, sh, irrigation_amount):
     """تعطي توصية الري حسب المرحلة"""
     if growth_stage == "Dormancy":
         return "No irrigation needed", "No water", "Good"
     elif growth_stage == "Leaf Yellowing & Dormancy Preparation":
-        return "Irrigate every two weeks (1-2 L/m²)", f"Add water: {int(irrigation_amount_ml)} ml" if irrigation_amount_ml > 0 else "No water", "Conditional"
+        return "Irrigate every two weeks (1-2 L/m²)", f"Add water: {int(irrigation_amount)} ml" if irrigation_amount > 0 else "No water", "Conditional"
     elif growth_stage == "Growth Stimulation":
-        return "Irrigate every 10-14 days (2-3 L/m²)", f"Add water: {int(irrigation_amount_ml)} ml" if irrigation_amount_ml > 0 else "No water", "Conditional"
+        return "Irrigate every 10-14 days (2-3 L/m²)", f"Add water: {int(irrigation_amount)} ml" if irrigation_amount > 0 else "No water", "Conditional"
     elif growth_stage == "Vegetative Growth":
-        return "Twice per week (3-5 L/m²)", f"Add water: {int(irrigation_amount_ml)} ml" if irrigation_amount_ml > 0 else "No water", "Conditional"
+        return "Twice per week (3-5 L/m²)", f"Add water: {int(irrigation_amount)} ml" if irrigation_amount > 0 else "No water", "Conditional"
     elif growth_stage == "Flowering":
-        return "Once per week (2-3 L/m²)", f"Add water: {int(irrigation_amount_ml)} ml" if irrigation_amount_ml > 0 else "No water", "Conditional"
+        return "Once per week (2-3 L/m²)", f"Add water: {int(irrigation_amount)} ml" if irrigation_amount > 0 else "No water", "Conditional"
     elif growth_stage == "Corm Multiplication":
-        return "Irrigate every 10 days (3-4 L/m²)", f"Add water: {int(irrigation_amount_ml)} ml" if irrigation_amount_ml > 0 else "No water", "Conditional"
+        return "Irrigate every 10 days (3-4 L/m²)", f"Add water: {int(irrigation_amount)} ml" if irrigation_amount > 0 else "No water", "Conditional"
     else:
         return "Follow expert advice", "-", "-"
 
@@ -142,10 +142,10 @@ if not filtered_df.empty:
 
     # --------- قراءة القيم الحالية ---------
     sh = filtered_df['sh'].values[0]
-    irrigation_amount_ml = filtered_df['irrigation_amount_ml'].values[0]
+    irrigation_amount = filtered_df['irrigation_amount'].values[0]
 
     # --------- منطق توصية الري ----------
-    irrigation_freq, irrigation_detail, irrigation_status = get_irrigation_recommendation(growth_stage, sh, irrigation_amount_ml)
+    irrigation_freq, irrigation_detail, irrigation_status = get_irrigation_recommendation(growth_stage, sh, irrigation_amount)
 
     # ------------ Soil Table بدون تكرار pH -------------
     soil_params = ["n", "p", "k", "st", "sh"] # حذف ph
